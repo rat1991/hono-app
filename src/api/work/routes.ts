@@ -1,10 +1,11 @@
-export default () => ([
-    {
-        method: 'POST',
-        path: '/work',
-        handler() {
+import Factories from "../index.js";
 
-        },
-        middlewares: []
-    }
-])
+Factories.createRouter('api::work', {
+    routes: [
+        {
+            method: 'GET',
+            path: '/work',
+            handler: 'work.create'
+        }
+    ]
+})
