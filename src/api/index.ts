@@ -1,6 +1,7 @@
-import type { Context } from 'hono'
+import type { Context, Handler, MiddlewareHandler } from 'hono'
 import { Hono } from 'hono'
 import { csrf } from 'hono/csrf';
+import { createFactory, Factory } from 'hono/factory'
 import fse from 'fs-extra'
 import path from 'path';
 
@@ -25,12 +26,13 @@ interface Router {
 interface Route {
     method: 'GET'|'POST'|'PUT'|'DELETE'|'PATCH'|'OPTIONS'
     path: string
-    handler?: Function | string
-    middlewares?: []
+    handler?: Handler | string
+    middlewares?: MiddlewareHandler[]
 }
 interface HonoApi extends Hono {
     app: Hono
 }
+
 
 async function importApiModule() {
     const modulesLoading:Promise<any>[] = [];
@@ -51,27 +53,29 @@ interface FactoriesOptions {
     bootstrap?(app:Factories['app']): void
 }
 class Factories {
-    app:Hono
+    factory: Factory
     api:HonoApi|null = null
     static appControllers:AppControllers = {}
     static appRouters: Router[] = []
-    constructor(private readonly options:FactoriesOptions={}) {
-        this.app = new Hono()
+    constructor(private readonly app:Hono,private readonly options:FactoriesOptions={}) {
+        this.factory = createFactory()
     }
     async createApi(prefix:string='/api') {
-        this.api = Object.assign(this.app.basePath(prefix), { app: this.app })
+        const { factory, app, options } = this
+        this.api = Object.assign(app.basePath(prefix), { app })
         this.api.use(csrf())
         await importApiModule()
-        Factories.appRouters.forEach(router => {
+        Factories.appRouters.forEach(({ routes }) => {
             const apiRouter = new Hono()
-            router.routes.forEach(route => {
+            routes.forEach(route => {
                 const method = route.method.toLowerCase() as ('get'|'post'|'put'|'delete'|'patch'|'options')
-                console.log('route::::', route);
-                apiRouter[method](route.path, route.handler as any)
+                const handler = factory.createHandlers(route.handler as Handler)
+                const middlewares = route.middlewares ?? []
+                apiRouter[method](route.path, ...middlewares, ...handler)
             })
             this.api?.route('/', apiRouter)
         })
-        this.options.bootstrap && this.options.bootstrap(this.app)
+        options.bootstrap && options.bootstrap(app)
         return this.api
     }
     static createController(uid:string, controllers:Record<string, Controller>) {
