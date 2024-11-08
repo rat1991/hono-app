@@ -1,9 +1,9 @@
-import type { Context, Handler, MiddlewareHandler } from 'hono'
+import type { Context, Handler, MiddlewareHandler, Env } from 'hono'
 import { Hono } from 'hono'
 import { csrf } from 'hono/csrf';
 import { createFactory, Factory } from 'hono/factory'
 import fse from 'fs-extra'
-import path from 'path';
+import path, { extname } from 'path';
 
 
 interface AppControllers {
@@ -36,6 +36,7 @@ interface HonoApi extends Hono {
 
 async function importApiModule() {
     const modulesLoading:Promise<any>[] = [];
+    const lazyLoad:(() => Promise<any>)[] = [];
     const folderPath = path.resolve(process.cwd(), 'src', 'api')
     const modulesPath = (await fse.readdir(folderPath, { withFileTypes: true })).reduce<string[]>((res, f) => {
         f.isDirectory() && res.push(f.name)
@@ -44,34 +45,34 @@ async function importApiModule() {
     modulesPath.forEach(m => {
         modulesLoading.push(
             import('file://' + path.resolve(folderPath, m, 'controller.ts')),
-            import('file://' + path.resolve(folderPath, m, 'routes.ts'))
         )
+        lazyLoad.push(() => import('file://' + path.resolve(folderPath, m, 'routes.ts')))
     })
     await Promise.all(modulesLoading)
+    await Promise.all(lazyLoad.map(m => m()))
 }
 interface FactoriesOptions {
     bootstrap?(app:Factories['app']): void
 }
-class Factories {
+class Factories<E extends Env = any> {
     factory: Factory
     api:HonoApi|null = null
     static appControllers:AppControllers = {}
     static appRouters: Router[] = []
     constructor(private readonly app:Hono,private readonly options:FactoriesOptions={}) {
-        this.factory = createFactory()
+        this.factory = createFactory<E>()
     }
     async createApi(prefix:string='/api') {
         const { factory, app, options } = this
         this.api = Object.assign(app.basePath(prefix), { app })
-        this.api.use(csrf())
         await importApiModule()
         Factories.appRouters.forEach(({ routes }) => {
             const apiRouter = new Hono()
             routes.forEach(route => {
                 const method = route.method.toLowerCase() as ('get'|'post'|'put'|'delete'|'patch'|'options')
                 const handler = factory.createHandlers(route.handler as Handler)
-                const middlewares = route.middlewares ?? []
-                apiRouter[method](route.path, ...middlewares, ...handler)
+                // const middlewares = route.middlewares ?? []
+                apiRouter[method](route.path, ...handler)
             })
             this.api?.route('/', apiRouter)
         })
@@ -92,14 +93,16 @@ class Factories {
             switch (typeof route.handler) {
                 case 'string':
                     route.handler = this.appControllers[`${symbol}${route.handler}`]
+                    break
+                case 'function':
+                    break
+                default:
             }
             if (!route.handler) {
                 throw new Error(`Handler not found for route ${route.path} in ${uid} controller`)
             }
-            console.log(router);
-            this.appRouters.push(router)
         })
-
+        this.appRouters.push(router)
     }
 }
 
