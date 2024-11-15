@@ -1,109 +1,65 @@
-import type { Context, Handler, MiddlewareHandler, Env } from 'hono'
-import { Hono } from 'hono'
-import { csrf } from 'hono/csrf';
-import { createFactory, Factory } from 'hono/factory'
 import fse from 'fs-extra'
-import path, { extname } from 'path';
+import path from "node:path"
+import { Hono } from "hono"
+import type { AppHono, HonoEnv } from '@/main'
+import { importModule } from '@/utils/helpers'
+import { errorHandler } from '@/common/errorHandler'
+import { createMiddleware } from 'hono/factory'
+import qs from 'qs'
 
-
-interface AppControllers {
-    [key: string]: Controller
-}
-interface Controller {
-    (ctx:Context): any
-}
-enum UID_SYMBOL {
-    api = 'api::',
-    admin = 'admin::',
-    'content-api' = 'api::',
-}
-type RouterType = 'admin' | 'content-api';
-interface Router {
-    type?: RouterType
-    prefix?: string
-    routes: Route[]
-}
-interface Route {
-    method: 'GET'|'POST'|'PUT'|'DELETE'|'PATCH'|'OPTIONS'
-    path: string
-    handler?: Handler | string
-    middlewares?: MiddlewareHandler[]
-}
-interface HonoApi extends Hono {
-    app: Hono
+export interface ApiEnv extends HonoEnv {
+    Variables: HonoEnv['Variables'] & {
+        defaultConfig: Pick<Pagination, 'pageSize' | 'page'>
+    }
 }
 
+export interface Pagination {
+    pageSize: number,
+    page: number
+    total: number
+}
 
-async function importApiModule() {
-    const modulesLoading:Promise<any>[] = [];
-    const lazyLoad:(() => Promise<any>)[] = [];
-    const folderPath = path.resolve(process.cwd(), 'src', 'api')
-    const modulesPath = (await fse.readdir(folderPath, { withFileTypes: true })).reduce<string[]>((res, f) => {
-        f.isDirectory() && res.push(f.name)
-        return res
-    }, [])
-    modulesPath.forEach(m => {
-        modulesLoading.push(
-            import('file://' + path.resolve(folderPath, m, 'controller.ts')),
-        )
-        lazyLoad.push(() => import('file://' + path.resolve(folderPath, m, 'routes.ts')))
+const defaultPaginationMiddleware = createMiddleware<ApiEnv>(async (c, next) => {
+    c.set('defaultConfig', {
+        pageSize: 10,
+        page: 1
     })
-    await Promise.all(modulesLoading)
-    await Promise.all(lazyLoad.map(m => m()))
-}
-interface FactoriesOptions {
-    bootstrap?(app:Factories['app']): void
-}
-class Factories<E extends Env = any> {
-    factory: Factory
-    api:HonoApi|null = null
-    static appControllers:AppControllers = {}
-    static appRouters: Router[] = []
-    constructor(private readonly app:Hono,private readonly options:FactoriesOptions={}) {
-        this.factory = createFactory<E>()
-    }
-    async createApi(prefix:string='/api') {
-        const { factory, app, options } = this
-        this.api = Object.assign(app.basePath(prefix), { app })
-        await importApiModule()
-        Factories.appRouters.forEach(({ routes }) => {
-            const apiRouter = new Hono()
-            routes.forEach(route => {
-                const method = route.method.toLowerCase() as ('get'|'post'|'put'|'delete'|'patch'|'options')
-                const handler = factory.createHandlers(route.handler as Handler)
-                // const middlewares = route.middlewares ?? []
-                apiRouter[method](route.path, ...handler)
-            })
-            this.api?.route('/', apiRouter)
-        })
-        options.bootstrap && options.bootstrap(app)
-        return this.api
-    }
-    static createController(uid:string, controllers:Record<string, Controller>) {
-         for (const [name, controller] of Object.entries(controllers)) {
-             this.appControllers[uid + '.' + name] = controller
-         }
-    }
-    static createRouter(uid:string, router:Router) {
-        router.type = router.type ?? 'content-api'
-        const symbol = UID_SYMBOL[router.type]
-        const id = uid.replace(symbol, '')
-        router.prefix = router.prefix ?? `/${id}`
-        router.routes.forEach(route => {
-            switch (typeof route.handler) {
-                case 'string':
-                    route.handler = this.appControllers[`${symbol}${route.handler}`]
-                    break
-                case 'function':
-                    break
-                default:
-            }
-            if (!route.handler) {
-                throw new Error(`Handler not found for route ${route.path} in ${uid} controller`)
-            }
-        })
-        this.appRouters.push(router)
-    }
+    await next()
+})
+
+enum QueryMap {
+    $eq = 'equals',
+    $ne = 'not',
+    $lt = 'lt',
+    $lte = 'lte',
+    $gt = 'gt',
+    $gte = 'gte',
+    $in = 'in',
+    $notIn = 'notIn',
+    $contains = 'contains',
+    $notContains = '',
+    $null = '',
+    $notNull = '',
+    $between = '',
+    $startsWith = 'startsWith',
+    $endsWith = 'endsWith',
+    $or = 'OR',
+    $and = 'AND',
+    $not = 'NOT',
+    /** preview feature */
+    $search = 'search',
 }
 
-export default Factories
+export default async function(app:AppHono) {
+    const apiModule = new Hono<HonoEnv>().basePath("/api")
+    apiModule.use(defaultPaginationMiddleware)
+    // 错误处理
+    apiModule.onError(errorHandler)
+
+    // 自动导入子模块
+    const subs = await importModule<Hono>('src/api')
+    subs.forEach(sub => {
+        apiModule.route('/', sub.module.default)
+    })
+    app.route('/', apiModule)
+};

@@ -1,17 +1,37 @@
 import { PrismaClient } from '@prisma/client';
+import type { MiddlewareHandler } from 'hono/types';
+import { createMiddleware } from 'hono/factory';
 
-let prisma: PrismaClient;
-
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
+const prisma = new PrismaClient({
+  omit: {
+    users: {
+      password: true
+    }
+  },
+  log: [
+    {
+      emit: 'stdout',
+      level: 'query'
+    }
+  ]
+});
+if (process.env.NODE_ENV !== 'production') {
   const globalWithPrisma = global as typeof globalThis & {
-    prisma: PrismaClient;
+    prisma: typeof prisma;
   };
+
   if (!globalWithPrisma.prisma) {
-    globalWithPrisma.prisma = new PrismaClient();
+    globalWithPrisma.prisma = prisma
   }
-  prisma = globalWithPrisma.prisma;
 }
+
+export const middlewarePrisma = createMiddleware<{
+  Variables: {
+    prisma: typeof prisma;
+  }
+}>(async (ctx, next) => {
+  ctx.set('prisma', prisma)
+  await next();
+})
 
 export default prisma;
