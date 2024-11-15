@@ -3,8 +3,12 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch src/main.ts",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
+    "devx": "vite --mode=development",
+    "build": "vite build --mode=production",
+    "test": "node bin/start.js",
+    "db:migrate": "prisma migrate dev --name init",
+    "db:generate": "prisma generate --schema=./prisma",
+    "db:push": "prisma db push --schema=./prisma",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio"
   },
@@ -14,16 +18,22 @@
     "@prisma/client": "5.21.1",
     "fs-extra": "^11.2.0",
     "hono": "^4.6.7",
+    "qs": "^6.13.0",
     "zod": "^3.23.8",
     "zod-prisma-types": "^3.1.8"
   },
   "devDependencies": {
+    "@hono/vite-build": "^1.1.0",
+    "@hono/vite-dev-server": "^0.17.0",
     "@quramy/prisma-fabbrica": "^2.2.1",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.11.17",
+    "@types/qs": "^6.9.17",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
     "prisma": "^5.21.1",
-    "tsx": "^4.7.1"
+    "shelljs": "^0.8.5",
+    "tsx": "^4.7.1",
+    "vite": "^5.4.11"
   }
 }
