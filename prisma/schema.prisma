@@ -6,6 +6,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  // 启用多文件 Prisma 架构,根据prisma/schema/目录下的*.prisma文件生成数据架构
+  previewFeatures = ["prismaSchemaFolder", "omitApi"]
 }
 
 generator zod {
@@ -25,14 +27,5 @@ generator fabbrica {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
-}
-
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // "mysql://${env('DB_USER')}:${env('DB_PASSWORD')}@${env('DB_HOST')}:${env('DB_PORT')}/${env('DB_NAME')}"
 }
