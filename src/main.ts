@@ -12,21 +12,24 @@ export interface HonoEnv extends Env {
 }
 export type AppHono = Hono<HonoEnv>
 
-const port = Number(process.env.PORT) || 3300
 const app:AppHono = new Hono()
 
 app.use(middlewarePrisma)
-useApiModule(app)
+await useApiModule(app)
 app.get('/', (c) => c.text('Hono App success!!!'))
 
-serve({
-  fetch: app.fetch,
-  port
-})
+// 只在生产环境使用 node-server
+if (process.env.NODE_ENV === 'production') {
+  const port = Number(process.env.PORT) || 3300
+  serve({
+    fetch: app.fetch,
+    port
+  })
 
-console.log(`
-  Hono App is successfully started.
-  Server is running on http://localhost:${port}  
-`)
+  console.log(`
+    Hono App is successfully started.
+    Server is running on http://localhost:${port}  
+  `)
+}
 
 export default app

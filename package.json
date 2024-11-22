@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch src/main.ts",
-    "devx": "vite --mode=development",
+    "devx": "vite --mode=development --host --port 8877",
     "build": "vite build --mode=production",
     "test": "node bin/start.js",
     "db:migrate": "prisma migrate dev --name init",
@@ -34,6 +34,7 @@
     "prisma": "^5.21.1",
     "shelljs": "^0.8.5",
     "tsx": "^4.7.1",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vite-plugin-top-level-await": "^1.4.4"
   }
 }

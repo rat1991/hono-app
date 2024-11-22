@@ -27,29 +27,6 @@ const defaultPaginationMiddleware = createMiddleware<ApiEnv>(async (c, next) => 
     await next()
 })
 
-enum QueryMap {
-    $eq = 'equals',
-    $ne = 'not',
-    $lt = 'lt',
-    $lte = 'lte',
-    $gt = 'gt',
-    $gte = 'gte',
-    $in = 'in',
-    $notIn = 'notIn',
-    $contains = 'contains',
-    $notContains = '',
-    $null = '',
-    $notNull = '',
-    $between = '',
-    $startsWith = 'startsWith',
-    $endsWith = 'endsWith',
-    $or = 'OR',
-    $and = 'AND',
-    $not = 'NOT',
-    /** preview feature */
-    $search = 'search',
-}
-
 export default async function(app:AppHono) {
     const apiModule = new Hono<HonoEnv>().basePath("/api")
     apiModule.use(defaultPaginationMiddleware)
@@ -57,9 +34,10 @@ export default async function(app:AppHono) {
     apiModule.onError(errorHandler)
 
     // 自动导入子模块
-    const subs = await importModule<Hono>('src/api')
-    subs.forEach(sub => {
-        apiModule.route('/', sub.module.default)
-    })
+    const apiModules = import.meta.glob<{ default: Hono }>('/src/api/**/index.ts', { eager: false });
+    for (const [key, value] of Object.entries(apiModules)) {
+        const module = await value()
+        apiModule.route('/', module.default)
+    }
     app.route('/', apiModule)
 };

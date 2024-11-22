@@ -1,8 +1,9 @@
 import { Hono, type Context } from "hono";
 import { zValidator } from '@hono/zod-validator'
-import { UsersSchema, UsersCreateInputSchema, UsersUpdateInputSchema, type Users } from '@/schema/prisma'
+import { UsersSchema, type Users } from '@/schema/prisma'
 import type { ApiEnv, Pagination } from "@/api";
 import { HTTPException } from 'hono/http-exception'
+import { parseQuery } from "@/utils/helpers";
 
 const userController = new Hono<ApiEnv>().basePath('/user');
 const usersValidator = zValidator('json', UsersSchema, (result, ctx) => {
@@ -44,14 +45,19 @@ function parsePagination<C extends Context>(ctx:C) {
 userController
 .get('/', async (ctx) => {
     const { prisma } = ctx.var
-    const { page, pageSize } = parsePagination(ctx)
+    const { pagination } = parseQuery(ctx)
     const total = await prisma.users.count()
     const entities = await prisma.users.findMany({
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize,
+        where: {
+            name: {
+                equals: 'i-su'
+            }
+        }
     })
     return ctx.json(paginationRes(entities, {
-        total, page, pageSize
+        total, page:pagination.page, pageSize:pagination.pageSize
     }));
 })
 .get('/:id{[0-9]+}', async (ctx) => {

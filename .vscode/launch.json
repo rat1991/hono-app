@@ -10,7 +10,7 @@
             "name": "Debug Hono App",
             "runtimeExecutable": "pnpm",
             "args": [
-                "dev",
+                "devx",
             ],
             "env": {
                 // "REMOTE_DEBUGGING_PORT": "9222"

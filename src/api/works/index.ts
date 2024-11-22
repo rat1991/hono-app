@@ -5,10 +5,10 @@ import { Hono } from "hono";
 
 const worksController = new Hono<HonoEnv>().basePath('/works');
 
-worksController.post('/', async(ctx) => {
+worksController.get('/', async(ctx) => {
     const body = await ctx.req.parseBody()
     const aa = parseQuery(ctx)
-    console.log('aa', aa);
+    console.log('=>', aa);
     return ctx.json({ message: 'works created' })
 })
 
