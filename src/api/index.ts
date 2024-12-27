@@ -1,11 +1,12 @@
 import fse from 'fs-extra'
 import path from "node:path"
-import { Hono } from "hono"
+import { Hono, type Env } from "hono"
 import type { AppHono, HonoEnv } from '@/main'
 import { importModule } from '@/utils/helpers'
 import { errorHandler } from '@/common/errorHandler'
 import { createMiddleware } from 'hono/factory'
 import qs from 'qs'
+import type { BlankEnv, BlankSchema, Schema } from 'hono/types'
 
 export interface ApiEnv extends HonoEnv {
     Variables: HonoEnv['Variables'] & {
@@ -27,8 +28,8 @@ const defaultPaginationMiddleware = createMiddleware<ApiEnv>(async (c, next) => 
     await next()
 })
 
-export default async function(app:AppHono) {
-    const apiModule = new Hono<HonoEnv>().basePath("/api")
+export default async function<E extends Env = BlankEnv, S extends Schema = BlankSchema, BasePath extends string = "/">() {
+    const apiModule = new Hono<E, S, BasePath>().basePath("/api")
     apiModule.use(defaultPaginationMiddleware)
     // 错误处理
     apiModule.onError(errorHandler)
@@ -39,5 +40,5 @@ export default async function(app:AppHono) {
         const module = await value()
         apiModule.route('/', module.default)
     }
-    app.route('/', apiModule)
+    return apiModule
 };

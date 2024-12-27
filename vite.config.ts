@@ -26,13 +26,17 @@ export default defineConfig({
         'prisma',
         "@prisma/client",
       ],
-      minify: false
+      minify: false,
+      
     })
   ],
   build: {
     // 添加构建入口配置
     rollupOptions: {
       input: './src/main.ts'
+    },
+    commonjsOptions: {
+      transformMixedEsModules: true
     }
   },
   resolve: {
